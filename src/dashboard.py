@@ -9,7 +9,12 @@ import time
 BASE_DIR = Path(__file__).parent.parent
 sys.path.append(str(BASE_DIR))
 
-from src.main import processar_etl, gerar_dados_brutos, PROCESSED_DIR
+# ARQUITETO: Adicionamos 'setup_inicial' na importação
+from src.main import processar_etl, gerar_dados_brutos, setup_inicial, PROCESSED_DIR
+
+# --- GARANTIA DE INFRAESTRUTURA ---
+# Antes de qualquer coisa, cria as pastas data/raw e data/processed se não existirem
+setup_inicial()
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
@@ -26,7 +31,7 @@ st.markdown("---")
 def carregar_dados():
     arquivo = PROCESSED_DIR / "relatorio_vendas.parquet"
     if not arquivo.exists():
-        st.warning("⚠️ Arquivo de dados não encontrado. Rode o ETL primeiro!")
+        # Se o arquivo não existe, não mostra erro, mostra instrução
         return None
     
     # Lê o Parquet (Muito rápido)
@@ -35,20 +40,30 @@ def carregar_dados():
 # --- SIDEBAR (LATERAL) ---
 with st.sidebar:
     st.header("⚙️ Operações")
-    if st.button("🔄 Rodar ETL (Recalcular)"):
-        with st.spinner("Processando dados brutos..."):
-            gerar_dados_brutos() # Gera novos dados aleatórios
-            processar_etl()      # Processa
-            time.sleep(1)        # Pequena pausa visual
-        st.success("Dados atualizados com sucesso!")
-        st.cache_data.clear()    # Limpa o cache para forçar recarregamento
+    # Dica visual para o usuário saber que precisa clicar aqui na primeira vez
+    arquivo_existe = (PROCESSED_DIR / "relatorio_vendas.parquet").exists()
+    
+    if not arquivo_existe:
+        st.warning("⚠️ Dados não encontrados na nuvem.")
+        texto_botao = "🚀 INICIAR SISTEMA (Primeira Carga)"
+    else:
+        texto_botao = "🔄 Rodar ETL (Recalcular)"
+
+    if st.button(texto_botao):
+        with st.spinner("Construindo infraestrutura e processando dados..."):
+            # O setup_inicial já rodou no início, mas garantimos aqui
+            setup_inicial() 
+            gerar_dados_brutos()
+            processar_etl()
+            time.sleep(1)
+        st.success("Sucesso! O Sistema está online.")
+        st.rerun() # Recarrega a página automaticamente
 
 # --- CARREGA OS DADOS ---
 df = carregar_dados()
 
 if df is not None:
     # --- KPIS (INDICADORES PRINCIPAIS) ---
-    # Cálculos rápidos usando Polars
     total_vendas = df["faturamento_total"].sum()
     total_impostos = df["total_impostos"].sum()
     qtd_transacoes = df["qtd_vendas"].sum()
@@ -65,16 +80,15 @@ if df is not None:
 
     with col_graf1:
         st.subheader("🏆 Faturamento por Filial")
-        # Convertendo para Pandas apenas para o Plotly (Plotly ainda prefere Pandas/Listas)
         fig_bar = px.bar(
             df.to_pandas(), 
             x="filial", 
             y="faturamento_total",
             color="categoria",
-            title="Vendas por Região e Categoria",
+            title="Vendas por Região",
             template="plotly_dark"
         )
-        st.plotly_chart(fig_bar, use_container_width=True)
+        st.plotly_chart(fig_bar, width="stretch") # Ajuste moderno
 
     with col_graf2:
         st.subheader("🍕 Distribuição de Categorias")
@@ -85,8 +99,17 @@ if df is not None:
             hole=0.4,
             template="plotly_dark"
         )
-        st.plotly_chart(fig_pie, use_container_width=True)
+        st.plotly_chart(fig_pie, width="stretch")
 
     # --- TABELA DE DADOS ---
     st.subheader("📋 Dados Detalhados")
-    st.dataframe(df.to_pandas(), use_container_width=True)
+    st.dataframe(df.to_pandas(), width="stretch")
+
+else:
+    # Mensagem amigável se for a primeira vez
+    st.info("👋 Bem-vindo ao Sistema ETL Enterprise!")
+    st.markdown("""
+        **Como o sistema é novo na nuvem, os dados ainda não foram gerados.**
+        
+        👉 Por favor, clique no botão **'INICIAR SISTEMA'** na barra lateral esquerda para rodar a pipeline pela primeira vez.
+    """)
