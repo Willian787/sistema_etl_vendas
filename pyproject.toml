@@ -1,0 +1,18 @@
+[project]
+name = "sistema_etl"
+version = "0.1.0"
+description = "ETL de Alta Performance com Polars"
+requires-python = ">=3.12"
+
+[tool.ruff]
+# O tamanho maximo da linha (padrao da industria)
+line-length = 88
+
+[tool.ruff.lint]
+# Regras: E (erros), F (falhas), I (imports desordenados)
+select = ["E", "F", "I"]
+
+[tool.pytest.ini_options]
+# Faz o pytest encontrar a pasta 'src' automaticamente
+pythonpath = ["."]
+testpaths = ["tests"]
